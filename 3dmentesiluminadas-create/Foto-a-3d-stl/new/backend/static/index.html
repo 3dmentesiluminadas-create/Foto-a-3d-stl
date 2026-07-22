@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imagen a STL 3D</title>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --accent:#6c8cff; --text:#e8eaf0; --muted:#8a90a3;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .card{
+    background:var(--panel); border-radius:16px; padding:32px; max-width:520px; width:100%;
+    box-shadow:0 20px 60px rgba(0,0,0,0.4);
+  }
+  h1{font-size:1.4rem; margin:0 0 4px}
+  p.sub{color:var(--muted); margin:0 0 24px; font-size:0.9rem}
+  .drop{
+    border:2px dashed #333a4d; border-radius:12px; padding:28px; text-align:center;
+    cursor:pointer; transition:border-color .2s; margin-bottom:16px;
+  }
+  .drop:hover, .drop.drag{border-color:var(--accent)}
+  .drop input{display:none}
+  #preview{max-width:100%; max-height:180px; border-radius:8px; margin-top:12px}
+  button{
+    width:100%; padding:12px; border:none; border-radius:10px; background:var(--accent);
+    color:white; font-size:1rem; font-weight:600; cursor:pointer; transition:opacity .2s;
+  }
+  button:disabled{opacity:.5; cursor:not-allowed}
+  #status{margin-top:14px; font-size:0.9rem; color:var(--muted); min-height:20px}
+  model-viewer{width:100%; height:320px; border-radius:12px; margin-top:16px; background:#0a0c10}
+  .downloads{display:flex; gap:10px; margin-top:14px}
+  .downloads a{
+    flex:1; text-align:center; padding:10px; border-radius:8px; background:#232838;
+    color:var(--text); text-decoration:none; font-size:0.9rem;
+  }
+  .downloads a:hover{background:#2b3145}
+  .note{font-size:0.78rem; color:var(--muted); margin-top:10px; line-height:1.4}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Imagen &rarr; Modelo 3D</h1>
+    <p class="sub">Subí una foto y generá un modelo 3D con textura (GLB) y su versión STL para imprimir.</p>
+
+    <label class="drop" id="drop">
+      <input type="file" id="fileInput" accept="image/*">
+      <div id="dropText">Arrastrá una imagen o hacé click para elegirla</div>
+      <img id="preview" style="display:none">
+    </label>
+
+    <button id="btnGenerate" disabled>Generar modelo 3D</button>
+    <div id="status"></div>
+
+    <model-viewer id="viewer" style="display:none" camera-controls auto-rotate shadow-intensity="1"></model-viewer>
+
+    <div class="downloads" id="downloads" style="display:none">
+      <a id="dlGlb" download>Descargar GLB (con textura)</a>
+      <a id="dlStl" download>Descargar STL (solo geometría)</a>
+    </div>
+
+    <p class="note">Nota: STL no soporta color ni textura (es solo geometría), por eso se generan dos archivos. La primera generación puede tardar más si el servicio gratuito está "despertando".</p>
+  </div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const dropText = document.getElementById('dropText');
+const btn = document.getElementById('btnGenerate');
+const status = document.getElementById('status');
+const viewer = document.getElementById('viewer');
+const downloads = document.getElementById('downloads');
+const dlGlb = document.getElementById('dlGlb');
+const dlStl = document.getElementById('dlStl');
+
+let selectedFile = null;
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file){
+  selectedFile = file;
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  dropText.textContent = file.name;
+  btn.disabled = false;
+}
+
+btn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  btn.disabled = true;
+  status.textContent = 'Generando modelo 3D... esto puede tardar un par de minutos.';
+  downloads.style.display = 'none';
+  viewer.style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const res = await fetch('/convert', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Error desconocido');
+    }
+    const data = await res.json();
+
+    viewer.src = data.glb_url;
+    viewer.style.display = 'block';
+
+    dlGlb.href = data.glb_url;
+    dlStl.href = data.stl_url;
+    downloads.style.display = 'flex';
+
+    status.textContent = 'Listo ✅';
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
