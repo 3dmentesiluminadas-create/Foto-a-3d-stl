@@ -28,6 +28,7 @@ OUTPUT_DIR = os.path.join(APP_DIR, "outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 HF_SPACE = "stabilityai/TripoSR"
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
 app = FastAPI(title="Imagen a STL 3D")
 
@@ -57,7 +58,7 @@ async def convert_image_to_3d(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
 
     try:
-        client = Client(HF_SPACE)
+        client = Client(HF_SPACE, hf_token=HF_TOKEN)
 
         preprocessed = client.predict(
             handle_file(input_path),
@@ -68,17 +69,17 @@ async def convert_image_to_3d(file: UploadFile = File(...)):
 
         result = client.predict(
             preprocessed,
-            64,
-            True,
+            256,
+            ["obj", "glb"],
             api_name="/generate",
         )
 
-        generated_path = result if isinstance(result, str) else result[0]
+        obj_path, glb_path = result
 
         glb_out = os.path.join(job_dir, "modelo.glb")
         stl_out = os.path.join(job_dir, "modelo.stl")
 
-        mesh = trimesh.load(generated_path, force="mesh")
+        mesh = trimesh.load(glb_path, force="mesh")
 
         mesh.export(glb_out)
         mesh.export(stl_out)
