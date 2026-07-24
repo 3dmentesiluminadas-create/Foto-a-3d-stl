@@ -100,4 +100,4 @@ def download(job_id: str, fmt: str):
     path = os.path.join(OUTPUT_DIR, job_id, filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
-    return FileResponse(path, filename=fil
+    return FileResponse(path, filename=filename)
